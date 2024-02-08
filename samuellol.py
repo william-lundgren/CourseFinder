@@ -1,4 +1,6 @@
 import re
+import time
+import os
 import requests
 from bs4 import BeautifulSoup as bs
 
@@ -60,41 +62,117 @@ def func(code, year, semester, search=False, subj_code=None):
     print("Getting response")
     response = requests.request("POST", url, data=payload, headers=headers)
     print("Response received")
-    #print(response.text)
+    # print(response.text)
 
-   # with open("output.html", "w") as file:
-   #     file.write(response.text)
+    # with open("output.html", "w") as file:
+    #    file.write(response.text)
 
     html = response.content
     soup = bs(html, "html.parser")
 
-    bookings = soup.body.findAll(string=re.compile('^Prerequisite:$'))
     courses = soup.find_all("table", class_="")
 
-    for course in courses:
-        # All the course data are in "td" tags. Always returns a list of 3 (i hope)
-        check_prerequisite = course.findAll(string=re.compile('^Prerequisite:$'))
-        prerequisite = check_prerequisite != [] # prereqs exist
+    courses_txt = []
+    try:
+        for course in courses:
+
+            # All the course data are in "td" tags. Always returns a list of 3 (i hope)
+            check_prerequisite = course.findAll(string=re.compile('^Prerequisite:$'))
+            prerequisite = check_prerequisite != []  # prereqs exist
             # print("pre req:", prerequisite)
 
+            course_data = course.find_all("tr")  # all tr tags are every line in each course
+            # print(course_data)
 
-        course_data = course.find_all("tr") # all tr tags are every line in each course
-        #print(course_data)
-        course_code, course_name, points = [element.text for element in course_data[0].findAll("td")] # first element is always heading
-        points = " ".join(points.split())  # remove leading spaces
-        if prerequisite:
-            prerequisite_data = course_data[1].findAll("td")[1].text
-            #print(prerequisite_data)
-        print(f"Code: {course_code}, Name: {course_name}, Points: {points} Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}")
+            course_code, course_name, points = [element.text for element in
+                                                course_data[0].findAll("td")]  # first element is always heading
+            points = " ".join(points.split())  # remove leading spaces
+            if prerequisite:  # TODO add fix for when there is 2 lines of prerequisits: ???????
+                prereq_num = 1
+                # TODO add a check for if it contains or, add 1:1+no of or so all prereqs are met
+                prerequisite_data = course_data[prereq_num].findAll("td")[1].text
+                while "OR" in prerequisite_data.split()[-1]:
+                    print(prerequisite_data)
+                    prereq_num += 1
+                    print("exist")
+                    prerequisite_data = prerequisite_data.replace("\n", "") + " " + course_data[prereq_num].findAll("td")[1].text
+#                    prereqdata += course_datai+=1.findall("td)[1].text
+                # print(prerequisite_data)
+            # print(f"Code: {course_code}, Name: {course_name}, Points: {points} Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}")
 
-    #print(courses[0])
+            with open("courses.txt", "r") as output_file:
+                results_text = output_file.readlines()
+            if not any(f"Code: {code}" in res for res in
+                       results_text):  # make sure course isnt already in document before adding, duplicates are not needed
+                courses_txt.append(
+                    f"Code: {course_code}, Name: {course_name}, Points: {points}, Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}\n")
+
+    except ValueError:
+        with open("problems.txt", "a") as file:
+            file.write(f"{code}, {year}, {semester}\n")
+        return []
+
+    return courses_txt
+    # print(courses[0])
 
 
+# roblem = "MLOAD%3BAHIS%3B"
 
-if __name__ =="__main__":
+def get_website_from_code(code, year=None, semester=None):
+    if year is None and semester is None:
+        year, semester = "2023", "2"
+
+    cload = "CLoad"
+    subj_code = "Enter+Keywords+or+Course+Code"
+
+    url = "https://wis.ntu.edu.sg/webexe/owa/AUS_SUBJ_CONT.main_display1"
+
+    payload = f"acadsem={year}_{semester}&acadsem={year}_{semester}&r_course_yr={code}&r_subj_code" \
+              f"={subj_code}&boption=" \
+              f"{cload}&acad={year}&semester={semester}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "sv-SE,sv;q=0.8,en-US;q=0.5,en;q=0.3",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://wis.ntu.edu.sg/",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Origin": "https://wis.ntu.edu.sg",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "iframe",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1"
+    }
+    print("Getting response")
+    response = requests.request("POST", url, data=payload, headers=headers)
+    print("Response received")
+    with open("output.html", "w") as file:
+        file.write(response.text)
+    os.system("start http://localhost:63342/CourseFinder/output.html")
+
+
+def main():
+    start_row = 467
     with open("courses_looong.txt", "r") as file:
-        code = file.readlines()[0][:-1]
+        course_codes = file.readlines()
 
+    bool = True
+    with open("courses.txt", "a+") as output:
+        for i, code in enumerate(course_codes[start_row - 1:]):  # start off where it crashed
+            if bool == True:
+                print(code)
+                bool = False
+            print(f"Starting scraping on row {start_row + i} out of {len(course_codes)}.")
+            year, sem = "2023", "2"
+            output.write("".join(func(code[:-1], year, sem)))  # get rid of \n char
+            time.sleep(0.2)  # lets not accidentally ddos their website
+
+
+if __name__ == "__main__":
+    # main()
+    #get_website_from_code("LMS%3B%3B3%3BF")
     year, sem = "2023", "2"
-    func(code, year, sem)
-
+    with open("test.txt", "w") as file:
+        file.write("".join(func("LMS%3B%3B3%3BF", year, sem)))
