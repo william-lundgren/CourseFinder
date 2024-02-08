@@ -1,5 +1,4 @@
 import re
-
 import requests
 from bs4 import BeautifulSoup as bs
 
@@ -58,24 +57,44 @@ def func(code, year, semester, search=False, subj_code=None):
         "Sec-Fetch-Site": "same-origin",
         "Sec-Fetch-User": "?1"
     }
-
+    print("Getting response")
     response = requests.request("POST", url, data=payload, headers=headers)
-
+    print("Response received")
     #print(response.text)
 
-    with open("output.html", "w") as file:
-        file.write(response.text)
+   # with open("output.html", "w") as file:
+   #     file.write(response.text)
 
     html = response.content
     soup = bs(html, "html.parser")
-    bookings = soup.body.findAll(string=re.compile('^Prerequisite:$'))
-    print(bookings[0].)
 
-with open("courses_looong.txt", "r") as file:
-    code = file.readlines()[0][:-1]
+    bookings = soup.body.findAll(string=re.compile('^Prerequisite:$'))
+    courses = soup.find_all("table", class_="")
+
+    for course in courses:
+        # All the course data are in "td" tags. Always returns a list of 3 (i hope)
+        check_prerequisite = course.findAll(string=re.compile('^Prerequisite:$'))
+        prerequisite = check_prerequisite != [] # prereqs exist
+            # print("pre req:", prerequisite)
+
+
+        course_data = course.find_all("tr") # all tr tags are every line in each course
+        #print(course_data)
+        course_code, course_name, points = [element.text for element in course_data[0].findAll("td")] # first element is always heading
+        points = " ".join(points.split())  # remove leading spaces
+        if prerequisite:
+            prerequisite_data = course_data[1].findAll("td")[1].text
+            #print(prerequisite_data)
+        print(f"Code: {course_code}, Name: {course_name}, Points: {points} Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}")
+
+    #print(courses[0])
+
 
 
 if __name__ =="__main__":
+    with open("courses_looong.txt", "r") as file:
+        code = file.readlines()[0][:-1]
+
     year, sem = "2023", "2"
     func(code, year, sem)
 
