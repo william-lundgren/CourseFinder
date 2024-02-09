@@ -64,8 +64,8 @@ def func(code, year, semester, search=False, subj_code=None):
     print("Response received")
     # print(response.text)
 
-    # with open("output.html", "w") as file:
-    #    file.write(response.text)
+    with open("output.html", "w") as file:
+        file.write(response.text)
 
     html = response.content
     soup = bs(html, "html.parser")
@@ -78,7 +78,8 @@ def func(code, year, semester, search=False, subj_code=None):
 
             # All the course data are in "td" tags. Always returns a list of 3 (i hope)
             check_prerequisite = course.findAll(string=re.compile('^Prerequisite:$'))
-            prerequisite = check_prerequisite != []  # prereqs exist
+            #print(check_prerequisite)
+            prerequisites = len(check_prerequisite) # != []  # prereqs exist
             # print("pre req:", prerequisite)
 
             course_data = course.find_all("tr")  # all tr tags are every line in each course
@@ -87,25 +88,34 @@ def func(code, year, semester, search=False, subj_code=None):
             course_code, course_name, points = [element.text for element in
                                                 course_data[0].findAll("td")]  # first element is always heading
             points = " ".join(points.split())  # remove leading spaces
-            if prerequisite:  # TODO add fix for when there is 2 lines of prerequisits: ???????
-                prereq_num = 1
+            if prerequisites:  # TODO add fix for when there is 2 lines of prerequisits: ???????
+
                 # TODO add a check for if it contains or, add 1:1+no of or so all prereqs are met
-                prerequisite_data = course_data[prereq_num].findAll("td")[1].text
-                while "OR" in prerequisite_data.split()[-1]:
-                    print(prerequisite_data)
-                    prereq_num += 1
-                    print("exist")
-                    prerequisite_data = prerequisite_data.replace("\n", "") + " " + course_data[prereq_num].findAll("td")[1].text
-#                    prereqdata += course_datai+=1.findall("td)[1].text
-                # print(prerequisite_data)
-            # print(f"Code: {course_code}, Name: {course_name}, Points: {points} Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}")
+                all_prereqs = "" #SOMETIMES MULTIPLE ROWS OF PREREQ IDK WHY SO ADD THEM ALL TO THIS VAR
+                for i in range(1, prerequisites + 1):
+                    prereq_num = i
+                    prerequisite_data = course_data[prereq_num].findAll("td")[1].text + " "
+                    while "or" in prerequisite_data.split()[-1].lower():
+                        #print(prerequisite_data)
+                        prereq_num += 1
+                        prerequisite_data = prerequisite_data.replace("\n", "") + " " + course_data[prereq_num].findAll("td")[1].text
+    #                    prereqdata += course_datai+=1.findall("td)[1].text
+                    all_prereqs += prerequisite_data
+                print("All prereqs:", all_prereqs)
+                    # print(prerequisite_data)
+                # print(f"Code: {course_code}, Name: {course_name}, Points: {points} Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}")
 
             with open("courses.txt", "r") as output_file:
                 results_text = output_file.readlines()
             if not any(f"Code: {code}" in res for res in
                        results_text):  # make sure course isnt already in document before adding, duplicates are not needed
-                courses_txt.append(
-                    f"Code: {course_code}, Name: {course_name}, Points: {points}, Prerequisite: {prerequisite_data if prerequisite else 'No Prerequisite'}\n")
+                string_to_append = f"Code: {course_code}, Name: {course_name}, Points: {points}, Prerequisite:" \
+                                   f" {all_prereqs if prerequisites else 'No Prerequisite'}\n"
+
+                # Get rid of multiple spaces in string
+                string_to_append = " ".join(string_to_append.split()) + "\n"
+                courses_txt.append(string_to_append)
+
 
     except ValueError:
         with open("problems.txt", "a") as file:
@@ -159,7 +169,7 @@ def main():
         course_codes = file.readlines()
 
     bool = True
-    with open("courses.txt", "a+") as output:
+    with open("courses.txt", "a") as output:
         for i, code in enumerate(course_codes[start_row - 1:]):  # start off where it crashed
             if bool == True:
                 print(code)
